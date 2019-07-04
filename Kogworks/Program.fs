@@ -46,8 +46,8 @@ let mutable blueMoveList = []
 let mutable redMoveList = []
 
 type Node = {
-    mutable move : Move
     mutable index : int // represents the 31 pieces - 15 red, 15 blue and 1 golden
+    mutable move : Move
     mutable connectedNodes : int list} // represents the list of indices of the connected pieces
 
 let mutable tree = [] // denotes all the 31 pieces along with their coordinates and list of connected nodes
@@ -72,7 +72,9 @@ tree <- tree |> List.mapi (fun i v ->  if i = 2 then {move = {X = 9; Y = 9; By =
 
 let printBoard() = 
 
-    //printfn "%A" tree
+    for node in tree do
+        if not (node.move = {X = -1; Y = -1; By = E}) then
+            printfn "%A\n" node
     //printfn "    0 1 2 3 4 5 6 7 8 9\n"
     printfn ""
     for i in 0 .. (jagged.Length - 1) do
@@ -262,15 +264,22 @@ let rec addPiece() =
             history <- {X = xCoord; Y = yCoord; By = currentPlayer} :: history // add current move to history list
             let connectedCogList = getConnectedCogs xCoord yCoord // contains the list of the adjacent cogs
             let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
-            printfn "====================%A" indexList
             match currentPlayer with 
             | B -> 
                 tree <- tree |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = currentBlueIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                    let move = tree.[ind].move
+                    let conList = currentBlueIndex :: tree.[ind].connectedNodes
+                    tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
                 currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
                 blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the move to the blue move list
                 bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
             | R -> 
                 tree <- tree |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = currentRedIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                    let move = tree.[ind].move
+                    let conList = currentRedIndex :: tree.[ind].connectedNodes
+                    tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
                 currentRedIndex <- currentRedIndex + 2 // update the currentRedIndex
                 redMoveList <- {X = xCoord; Y = yCoord; By = R} :: redMoveList // add the move to the red move list
                 redPieces <- (redPieces-1) //reduce the number of red pieces left
