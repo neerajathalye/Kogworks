@@ -38,14 +38,41 @@ let mutable currentPlayer = B
 let mutable currentGameStatus = InProgress
 let mutable redPieces = 14 // number of red pieces
 let mutable bluePieces = 14 // number of blue pieces
+let mutable currentBlueIndex = 3
+let mutable currentRedIndex = 4
 
 let mutable history = []
 let mutable blueMoveList = []
 let mutable redMoveList = []
 
-//let mutable history = 
+type Node = {
+    mutable move : Move
+    mutable index : int // represents the 31 pieces - 15 red, 15 blue and 1 golden
+    mutable connectedNodes : int list} // represents the list of indices of the connected pieces
+
+let mutable tree = [] // denotes all the 31 pieces along with their coordinates and list of connected nodes
+
+for i in 0 .. 30 do 
+    let m = {X = -1; Y = -1; By = E} // Creating a default node to initialize the tree
+    let node = {move = m; index = i; connectedNodes = []} // creating an empty connectedNodes list to initialize the tree
+    tree <- node::tree
+
+tree <- List.rev tree // reverse the list to get index 0 back on top of the list
+
+// Each item in the list is denoted by an index. Each index corresponds to indices in the tree list
+// The golden cog has the index 0
+// The first blue cog has the index 1 and subsequent blue cogs have odd indices after 1 as follows : 3, 5, 7 ..
+// The first red cog has the index 2 and subsequent red cogs have even indices after 2 as follows : 4, 6, 8 ..
+
+tree <- tree |> List.mapi (fun i v ->  if i = 0 then {move = {X = 0; Y = 0; By = G}; index = 0; connectedNodes = []} else v ) // change index 0 to represent the golden cog
+tree <- tree |> List.mapi (fun i v ->  if i = 1 then {move = {X = 9; Y = 0; By = B}; index = 1; connectedNodes = []} else v ) // change index 1 to represent the first blue cog
+tree <- tree |> List.mapi (fun i v ->  if i = 2 then {move = {X = 9; Y = 9; By = R}; index = 2; connectedNodes = []} else v ) // change index 2 to represent the first red cog
+
+
 
 let printBoard() = 
+
+    //printfn "%A" tree
     //printfn "    0 1 2 3 4 5 6 7 8 9\n"
     printfn ""
     for i in 0 .. (jagged.Length - 1) do
@@ -200,7 +227,26 @@ let rec deleteItemFromList item list = //deletes specified item from the list
     | head :: tail -> head :: deleteItemFromList item tail
     | _ -> []
 
-    
+let getConnectedCogs x y = 
+    let mutable connectedCogsList = []
+    let coordinates = [(x, y-1); (x-1, y-1); (x-1, y); (x, y+1); (x+1, y+1); (x+1, y)]
+    for c in coordinates do // returns records of move for all the adjacent cogs
+        if not (isInvalidCoord c) then
+            let x1,y1 = c
+            if (jagged.[x1].[y1] <> E) then
+                connectedCogsList <- {X = x1; Y = y1; By = jagged.[x1].[y1]} :: connectedCogsList 
+
+    connectedCogsList // contains all the adjacent cogs (record)
+
+let convertMoveToIndex connectedCogsList = // converts the cog (record) to its equivalent index in the tree
+    let mutable indexList = []
+    for cog in connectedCogsList do 
+        for node in tree do
+            if cog = node.move then
+                indexList <- node.index :: indexList
+
+    indexList
+
 let rec addPiece() =
     printfn "Enter X Coordinate (0-9): "
     let xCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
@@ -214,16 +260,23 @@ let rec addPiece() =
         if not (hasInvalidTriangle xCoord yCoord currentPlayer) then
             jagged.[xCoord].[yCoord] <- currentPlayer // assign current player to the coordindates in jagged
             history <- {X = xCoord; Y = yCoord; By = currentPlayer} :: history // add current move to history list
+            let connectedCogList = getConnectedCogs xCoord yCoord // contains the list of the adjacent cogs
+            let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+            printfn "====================%A" indexList
             match currentPlayer with 
             | B -> 
+                tree <- tree |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = currentBlueIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
                 blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the move to the blue move list
                 bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
             | R -> 
+                tree <- tree |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = currentRedIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                currentRedIndex <- currentRedIndex + 2 // update the currentRedIndex
                 redMoveList <- {X = xCoord; Y = yCoord; By = R} :: redMoveList // add the move to the red move list
                 redPieces <- (redPieces-1) //reduce the number of red pieces left
             | _ -> ()
 
-            Console.Clear()
+            //Console.Clear()
             printBoard()
             //printfn "\n%A\n" history 
 
@@ -374,7 +427,8 @@ let rec makeMove() =
 
 let main = 
 
-    
+    //printfn "%i" tree.Length
+    //printfn "%A" tree
     printBoard()
 
     //printfn "%b" (hasInvalidTriangle 4 3 R)
