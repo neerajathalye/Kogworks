@@ -285,7 +285,7 @@ let rec addPiece() =
                 redPieces <- (redPieces-1) //reduce the number of red pieces left
             | _ -> ()
 
-            //Console.Clear()
+            Console.Clear()
             printBoard()
             //printfn "\n%A\n" history 
 
@@ -316,6 +316,14 @@ let rec movePiece() =
 
             if isMoveValid newXCoord newYCoord B then
 
+                let mutable orgIndex = -1 // represents the index of the piece that will be moved
+                let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
+
+                for node in tree do // gets the original index of the piece to be moved
+                    if node.move = {X = xCoord; Y = yCoord; By = jagged.[xCoord].[yCoord]} then
+                        orgIndex <- node.index
+                        orgNodeList <- node.connectedNodes
+
                 jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
                 jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
 
@@ -329,32 +337,28 @@ let rec movePiece() =
                     blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove old move from the red move list
                     history <- {X = newXCoord; Y = newYCoord; By = B} :: history // add current move to history list
                     blueMoveList <- {X = newXCoord; Y = newYCoord; By = B} :: blueMoveList // add the move to the red move list
+
+                    let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
+                    let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+
+                    tree <- tree |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = B}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                    
+                    for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
+                        let move = tree.[ind].move
+                        let conList = deleteItemFromList orgIndex tree.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
+                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
+                    for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                        let move = tree.[ind].move
+                        let conList = orgIndex :: tree.[ind].connectedNodes
+                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
                     Console.Clear()
                     printBoard()
                     currentPlayer <- other() // swap players  
             else
                 printfn "Invalid Move. Please Try again\n"
                 movePiece()
-            //match isMoveValid newXCoord newYCoord B with
-            //| true -> //make move
-            //    history <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} history // remove old move from history list
-            //    //history.Remove {X = xCoord; Y = yCoord; By = B} 
-            //    blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove old move from the blue move list
-            //    //blueMoveList.Remove {X = xCoord; Y = yCoord; By = B} |> ignore // remove old move from the blue move list
-            //    jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
-            //    jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
-            //    history <- {X = newXCoord; Y = newYCoord; By = B} :: history // add current move to history list
-            //    blueMoveList <- {X = newXCoord; Y = newYCoord; By = B} :: blueMoveList // add the move to the blue move list
-
-            //    Console.Clear()
-            //    printBoard()
-            //    //printfn "\n%A\n" history 
-
-            //    currentPlayer <- other() // swap players
-                   
-            //| false -> 
-            //    printfn "Invalid Move. Please Try again\n"
-            //    movePiece()
         else
             printfn "Illegal Move. Try again"
             movePiece()
@@ -369,6 +373,14 @@ let rec movePiece() =
 
             if isMoveValid newXCoord newYCoord R then
 
+                let mutable orgIndex = -1 // represents the index of the piece that will be moved
+                let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
+
+                for node in tree do // gets the original index of the piece to be moved
+                    if node.move = {X = xCoord; Y = yCoord; By = jagged.[xCoord].[yCoord]} then
+                        orgIndex <- node.index
+                        orgNodeList <- node.connectedNodes
+
                 jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
                 jagged.[newXCoord].[newYCoord] <- R // assign B to the new coordindates in jagged
 
@@ -382,6 +394,22 @@ let rec movePiece() =
                     redMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} redMoveList // remove old move from the red move list
                     history <- {X = newXCoord; Y = newYCoord; By = R} :: history // add current move to history list
                     redMoveList <- {X = newXCoord; Y = newYCoord; By = R} :: redMoveList // add the move to the red move list
+
+                    let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
+                    let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+
+                    tree <- tree |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = R}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                    
+                    for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
+                        let move = tree.[ind].move
+                        let conList = deleteItemFromList orgIndex tree.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
+                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
+                    for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                        let move = tree.[ind].move
+                        let conList = orgIndex :: tree.[ind].connectedNodes
+                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
                     Console.Clear()
                     printBoard()
                     currentPlayer <- other() // swap players  
@@ -389,19 +417,6 @@ let rec movePiece() =
                 printfn "Invalid Move. Please Try again\n"
                 movePiece()
 
-
-            //match isMoveValid newXCoord newYCoord R with
-            //| true -> //make move
-            //   history <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} history // remove old move from history list
-            //   redMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} redMoveList // remove old move from the red move list
-            //   history <- {X = newXCoord; Y = newYCoord; By = R} :: history // add current move to history list
-            //   redMoveList <- {X = newXCoord; Y = newYCoord; By = R} :: blueMoveList // add the move to the red move list
-            //   Console.Clear()
-            //   printBoard()
-            //   currentPlayer <- other() // swap players     
-            //| false -> 
-            //   printfn "Invalid Move. Please Try again\n"
-            //   movePiece()
         else
             printfn "Illegal Move. Try again"
             movePiece()
