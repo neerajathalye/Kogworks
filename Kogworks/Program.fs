@@ -9,8 +9,7 @@ type CellState =
 
 type GameStatus = 
 | InProgress
-| WonByB
-| WonByR 
+| Won
 
 type Move = {
     X : int
@@ -22,17 +21,6 @@ let jagged = [| for a in 1 .. 10 do yield [| for a in 1 .. a do yield E |] |] //
 jagged.[0].[0] <- G // Assign the top corner golden
 jagged.[9].[0] <- B // Assign the left corner blue
 jagged.[9].[9] <- R // Assign the right corner red
-
-//jagged.[3].[2] <- R
-//jagged.[3].[3] <- R
-//jagged.[4].[3] <- R
-
-//jagged.[4].[1] <- R
-//jagged.[5].[2] <- R
-
-//jagged.[1].[1] <- R
-//jagged.[2].[1] <- R
-//jagged.[2].[2] <- R
 
 let mutable currentPlayer = B
 let mutable currentGameStatus = InProgress
@@ -68,13 +56,13 @@ tree <- tree |> List.mapi (fun i v ->  if i = 0 then {move = {X = 0; Y = 0; By =
 tree <- tree |> List.mapi (fun i v ->  if i = 1 then {move = {X = 9; Y = 0; By = B}; index = 1; connectedNodes = []} else v ) // change index 1 to represent the first blue cog
 tree <- tree |> List.mapi (fun i v ->  if i = 2 then {move = {X = 9; Y = 9; By = R}; index = 2; connectedNodes = []} else v ) // change index 2 to represent the first red cog
 
-
-
 let printBoard() = 
+    
+    printfn "\n"
 
-    for node in tree do
-        if not (node.move = {X = -1; Y = -1; By = E}) then
-            printfn "%A\n" node
+    //for node in tree do
+    //    if not (node.move = {X = -1; Y = -1; By = E}) then
+    //        printfn "%A\n" node
     //printfn "    0 1 2 3 4 5 6 7 8 9\n"
     printfn ""
     for i in 0 .. (jagged.Length - 1) do
@@ -96,10 +84,6 @@ let other() = // if current player is Red, return blue. Return golden and empty 
     | B-> R
     | G -> G
     | E -> E
-
-let checkGameStatus() = //check the current state of the game  and update currentGameStatus
-    //TODO: Write method
-    ()
 
 let isInvalidCoord (x, y) : bool = //checks whether the x,y is a valid coordinate on the board
     (x < 0 || x > 9 || y < 0 || y > x)
@@ -204,7 +188,6 @@ let isMoveValid x y player : bool = //checks whether the current move is valid o
     | (9,9,_) -> false // Red Cog
     | (x,y,_) when List.contains {X = x; Y = y; By = R} history -> false // returns false if move is made on a piece already placed by the Red player
     | (x,y,_) when List.contains {X = x; Y = y; By = B} history -> false // returns false if move is made on a piece already placed by the Blue player
-    //| (x,y,_) when (hasInvalidTriangle x y player) -> false // if (x,y) is part of an invalid triangle then return false 
     | (8,0,R) when jagged.[9].[1] = R -> false // if (9,1) is already Red, then return false for (8,0)
     | (8,0,B) when jagged.[9].[1] = B -> false // if (9,1) is already Blue, then return false for (8,0)
     | (9,1,R) when jagged.[8].[0] = R -> false // if (8,0) is already Red, then return false for (9,1)
@@ -218,9 +201,6 @@ let isMoveValid x y player : bool = //checks whether the current move is valid o
     | (1,1,R) when jagged.[1].[0] = R -> false // if (1,0) is already Red, then return false for (1,1)
     | (1,1,B) when jagged.[1].[0] = B -> false // if (1,0) is already Blue, then return false for (1,1)
     | _ -> true
-
-
-
 
 let rec deleteItemFromList item list = //deletes specified item from the list
     
@@ -249,14 +229,33 @@ let convertMoveToIndex connectedCogsList = // converts the cog (record) to its e
 
     indexList
 
-let rec addPiece() =
+let checkGameStatus() = //check the current state of the game  and update currentGameStatus
+    //TODO: Write method
+
+    ()
+
+let rec traverse index visited = 
+    
+    match index with 
+    | 0 ->
+        printfn "Golden Cog Reached!"
+        currentGameStatus <- Won
+        
+    | ind -> 
+        if not (List.contains ind visited) then
+            printf "%i --> " ind
+            let newVisited = ind :: visited
+            for i in tree.[ind].connectedNodes do
+                traverse i newVisited
+           
+
+let rec addPiece() = // adds pieces to the board
     printfn "Enter X Coordinate (0-9): "
     let xCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
     printfn "Enter Y Coordinate (0-%i): " xCoord
     let yCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
 
     //Assign a piece and check if move is valid. If not delete it again
-
     match isMoveValid xCoord yCoord currentPlayer with
     | true -> //make move
         if not (hasInvalidTriangle xCoord yCoord currentPlayer) then
@@ -274,6 +273,7 @@ let rec addPiece() =
                 currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
                 blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the move to the blue move list
                 bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
+                traverse 1 []
             | R -> 
                 tree <- tree |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = currentRedIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
                 for ind in indexList do // for each item in the index list update their index list to contain this cog's index
@@ -285,10 +285,9 @@ let rec addPiece() =
                 redPieces <- (redPieces-1) //reduce the number of red pieces left
             | _ -> ()
 
-            Console.Clear()
+            //Console.Clear()
             printBoard()
-            //printfn "\n%A\n" history 
-
+            
             currentPlayer <- other() // swap players
         else
             printfn "Invalid Move. Please Try again\n"
@@ -297,7 +296,7 @@ let rec addPiece() =
         printfn "Invalid Move. Please Try again\n"
         addPiece()
 
-let rec movePiece() = 
+let rec movePiece() =  // moves pieces on the board to a new location
 
     printfn "Enter coordinates of the piece to be moved"
     printfn "Enter X Coordinate (0-9): "
@@ -447,7 +446,7 @@ let rec makeMove() =
     checkGameStatus() // checks the current game status
     match currentGameStatus with 
     | InProgress -> makeMove() //if game is still in progress, call makeMove again
-    | _ -> () //else quit
+    | _ -> printfn "GAME OVER!!" //else quit
 
 let main = 
 
@@ -465,6 +464,7 @@ let main =
     ////printfn "Count : %i" triangleList.Length
     //for l in triangleList do
         //printfn "%A" l
+
     makeMove()
 
     //jagged |> Array.sumBy Array.length |> printfn "LENGTH = %i" // to print length of a jagged array
