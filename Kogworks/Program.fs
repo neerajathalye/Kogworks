@@ -9,7 +9,8 @@ type CellState =
 
 type GameStatus = 
 | InProgress
-| Won
+| WonByB
+| WonByR
 
 type Move = {
     X : int
@@ -32,6 +33,8 @@ let mutable currentRedIndex = 4
 let mutable history = []
 let mutable blueMoveList = []
 let mutable redMoveList = []
+let mutable blueChains = []
+let mutable redChains = []
 
 type Node = {
     mutable index : int // represents the 31 pieces - 15 red, 15 blue and 1 golden
@@ -76,7 +79,7 @@ let printBoard() =
         printfn ""
     //printfn ""
     printfn "\n        0 1 2 3 4 5 6 7 8 9\n"
-    printfn "Red: %i Blue: %i\n" redPieces bluePieces
+    printfn "Blue: %i Red: %i\n" bluePieces redPieces
 
 let other() = // if current player is Red, return blue. Return golden and empty if same state
     match currentPlayer with
@@ -234,20 +237,38 @@ let checkGameStatus() = //check the current state of the game  and update curren
 
     ()
 
-let rec traverse index visited = 
+
+let rec traverseBlue index visited = 
     
     match index with 
     | 0 ->
-        printfn "Golden Cog Reached!"
-        currentGameStatus <- Won
-        
+        let newVisited = 0 :: visited
+        blueChains <- newVisited :: blueChains
+        printfn "Golden Cog Reached! Blue wins the game!"
+        currentGameStatus <- WonByB 
     | ind -> 
         if not (List.contains ind visited) then
-            printf "%i --> " ind
             let newVisited = ind :: visited
+            blueChains <- newVisited :: blueChains
+            printfn "INDEX: %i VISITED: %A" ind newVisited
             for i in tree.[ind].connectedNodes do
-                traverse i newVisited
+                traverseBlue i newVisited
            
+let rec traverseRed index visited = 
+    
+    match index with 
+    | 0 ->
+        let newVisited = 0 :: visited
+        redChains <- newVisited :: redChains
+        printfn "Golden Cog Reached! Red wins the game!"
+        currentGameStatus <- WonByR
+    | ind -> 
+        if not (List.contains ind visited) then
+            let newVisited = ind :: visited
+            redChains <- newVisited :: redChains
+            printfn "INDEX: %i VISITED: %A" ind newVisited
+            for i in tree.[ind].connectedNodes do
+                traverseRed i newVisited
 
 let rec addPiece() = // adds pieces to the board
     printfn "Enter X Coordinate (0-9): "
@@ -273,7 +294,8 @@ let rec addPiece() = // adds pieces to the board
                 currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
                 blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the move to the blue move list
                 bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
-                traverse 1 []
+                traverseBlue 1 [] // traverses from blue's base and gets all paths starting from node 1
+                blueChains |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
             | R -> 
                 tree <- tree |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = currentRedIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
                 for ind in indexList do // for each item in the index list update their index list to contain this cog's index
@@ -283,6 +305,8 @@ let rec addPiece() = // adds pieces to the board
                 currentRedIndex <- currentRedIndex + 2 // update the currentRedIndex
                 redMoveList <- {X = xCoord; Y = yCoord; By = R} :: redMoveList // add the move to the red move list
                 redPieces <- (redPieces-1) //reduce the number of red pieces left
+                traverseRed 2 [] // traverses from red's base and gets all paths starting from node 2
+                redChains |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
             | _ -> ()
 
             //Console.Clear()
@@ -351,8 +375,11 @@ let rec movePiece() =  // moves pieces on the board to a new location
                         let move = tree.[ind].move
                         let conList = orgIndex :: tree.[ind].connectedNodes
                         tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
-
-                    Console.Clear()
+                    
+                    traverseBlue 1 [] // traverses from blue's base and gets all paths starting from node 1
+                    blueChains |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list   
+                    
+                    //Console.Clear()
                     printBoard()
                     currentPlayer <- other() // swap players  
             else
@@ -409,7 +436,10 @@ let rec movePiece() =  // moves pieces on the board to a new location
                         let conList = orgIndex :: tree.[ind].connectedNodes
                         tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
 
-                    Console.Clear()
+                    traverseRed 2 [] // traverses from red's base and gets all paths starting from node 2
+                    redChains |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+                    
+                    //Console.Clear()
                     printBoard()
                     currentPlayer <- other() // swap players  
             else
