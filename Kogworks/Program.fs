@@ -93,7 +93,7 @@ let isInvalidCoord (x, y) : bool = //checks whether the x,y is a valid coordinat
 
 let checkTriangle x y player : Move list list = 
 
-    let mutable triangle = []
+    let mutable triangles = []
     
     let v1 = (x, y-1)
     let v2 = (x-1, y-1)
@@ -102,52 +102,17 @@ let checkTriangle x y player : Move list list =
     let v5 = (x+1, y+1)
     let v6 = (x+1, y)
 
-    //if not (jagged.[x].[y] = E) then
-    //printfn "\n %i %i %A" x y player
-    if not (isInvalidCoord v1) && not (isInvalidCoord v2) then
-        let x1, y1 = v1
-        let x2, y2 = v2
-        if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
-            //printfn "Triangle 1 Valid: %A : %A : %A" (x,y) v1 v2
-            let tuple = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
-            triangle <- tuple :: triangle      
-    if not (isInvalidCoord v2) && not (isInvalidCoord v3) then
-        let x1, y1 = v2
-        let x2, y2 = v3
-        if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
-            //printfn "Triangle 2 Valid: %A : %A : %A" (x,y) v2 v3
-            let tuple = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
-            triangle <- tuple :: triangle
-    if not (isInvalidCoord v3) && not (isInvalidCoord v4) then
-        let x1, y1 = v3
-        let x2, y2 = v4
-        if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
-            //printfn "Triangle 3 Valid: %A : %A : %A" (x,y) v3 v4
-            let tuple = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
-            triangle <- tuple :: triangle
-    if not (isInvalidCoord v4) && not (isInvalidCoord v5) then
-        let x1, y1 = v4
-        let x2, y2 = v5
-        if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
-            //printfn "Triangle 4 Valid: %A : %A : %A" (x,y) v4 v5
-            let tuple = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
-            triangle <- tuple :: triangle
-    if not (isInvalidCoord v5) && not (isInvalidCoord v6) then
-        let x1, y1 = v5
-        let x2, y2 = v6
-        if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
-            //printfn "Triangle 5 Valid: %A : %A : %A" (x,y) v5 v6
-            let tuple = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
-            triangle <- tuple :: triangle
-    if not (isInvalidCoord v6) && not (isInvalidCoord v1) then
-        let x1, y1 = v6
-        let x2, y2 = v1
-        if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
-            //printfn "Triangle 6 Valid: %A : %A : %A" (x,y) v6 v1
-            let tuple = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
-            triangle <- tuple :: triangle
-    
-    triangle
+    let list = [(v1, v2); (v2, v3); (v3, v4); (v4, v5); (v5, v6); (v6, v1)]
+
+    for (vi, vj) in list do
+        if not (isInvalidCoord vi) && not (isInvalidCoord vj) then
+            let x1, y1 = vi
+            let x2, y2 = vj
+            if (jagged.[x1].[y1] = B || jagged.[x1].[y1] = R) && (jagged.[x2].[y2] = B || jagged.[x2].[y2] = R) then
+                //printfn "Triangle 1 Valid: %A : %A : %A" (x,y) v1 v2
+                let triangle = [{X = x; Y = y; By = jagged.[x].[y]} ; {X = x1; Y = y1; By = jagged.[x1].[y1]} ; {X = x2; Y = y2; By = jagged.[x2].[y2]}]
+                triangles <- triangle :: triangles   
+    triangles
 
 let checkAllTriangles(): Move list list = 
 
@@ -259,26 +224,6 @@ let rec traverse index visited oldChains player = // traverse the player's paths
             for i in tree.[ind].connectedNodes do
                 chains <- (traverse i newVisited chains player) @ chains
         chains  
-            
-      
-//let rec traverseRed index visited oldRedChains = // traverse the red paths   
-    
-//    let mutable redChains = []
-//    match index with 
-//    | 0 ->
-//        let newVisited = 0 :: visited
-//        redChains <- newVisited :: redChains
-//        printfn "Golden Cog Reached! Red wins the game!"
-//        currentGameStatus <- WonByR
-//        redChains
-//    | ind -> 
-//        if not (List.contains ind visited) then
-//            let newVisited = ind :: visited
-//            redChains <- newVisited :: oldRedChains
-//            printfn "INDEX: %i VISITED: %A" ind newVisited
-//            for i in tree.[ind].connectedNodes do
-//                redChains <- (traverseRed i newVisited redChains) @ redChains
-//        redChains
 
 let rec addPiece() = // adds pieces to the board
     printfn "Enter X Coordinate (0-9): "
