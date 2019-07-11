@@ -1,6 +1,4 @@
 ﻿open System
-open System.Collections.Generic
-
 type CellState = 
 | R // Red
 | B // Blue
@@ -33,31 +31,29 @@ let mutable currentRedIndex = 4
 let mutable history = []
 let mutable blueMoveList = []
 let mutable redMoveList = []
-//let mutable blueChains = []
-//let mutable redChains = []
 
 type Node = {
     mutable index : int // represents the 31 pieces - 15 red, 15 blue and 1 golden
     mutable move : Move
     mutable connectedNodes : int list} // represents the list of indices of the connected pieces
 
-let mutable tree = [] // denotes all the 31 pieces along with their coordinates and list of connected nodes
+let mutable graph = [] // denotes all the 31 pieces along with their coordinates and list of connected nodes
 
 for i in 0 .. 30 do 
     let m = {X = -1; Y = -1; By = E} // Creating a default node to initialize the tree
     let node = {move = m; index = i; connectedNodes = []} // creating an empty connectedNodes list to initialize the tree
-    tree <- node::tree
+    graph <- node::graph
 
-tree <- List.rev tree // reverse the list to get index 0 back on top of the list
+graph <- List.rev graph // reverse the list to get index 0 back on top of the list
 
 // Each item in the list is denoted by an index. Each index corresponds to indices in the tree list
 // The golden cog has the index 0
 // The first blue cog has the index 1 and subsequent blue cogs have odd indices after 1 as follows : 3, 5, 7 ..
 // The first red cog has the index 2 and subsequent red cogs have even indices after 2 as follows : 4, 6, 8 ..
 
-tree <- tree |> List.mapi (fun i v ->  if i = 0 then {move = {X = 0; Y = 0; By = G}; index = 0; connectedNodes = []} else v ) // change index 0 to represent the golden cog
-tree <- tree |> List.mapi (fun i v ->  if i = 1 then {move = {X = 9; Y = 0; By = B}; index = 1; connectedNodes = []} else v ) // change index 1 to represent the first blue cog
-tree <- tree |> List.mapi (fun i v ->  if i = 2 then {move = {X = 9; Y = 9; By = R}; index = 2; connectedNodes = []} else v ) // change index 2 to represent the first red cog
+graph <- graph |> List.mapi (fun i v ->  if i = 0 then {move = {X = 0; Y = 0; By = G}; index = 0; connectedNodes = []} else v ) // change index 0 to represent the golden cog
+graph <- graph |> List.mapi (fun i v ->  if i = 1 then {move = {X = 9; Y = 0; By = B}; index = 1; connectedNodes = []} else v ) // change index 1 to represent the first blue cog
+graph <- graph |> List.mapi (fun i v ->  if i = 2 then {move = {X = 9; Y = 9; By = R}; index = 2; connectedNodes = []} else v ) // change index 2 to represent the first red cog
 
 let printBoard() = 
     
@@ -91,7 +87,7 @@ let other() = // if current player is Red, return blue. Return golden and empty 
 let isInvalidCoord (x, y) : bool = //checks whether the x,y is a valid coordinate on the board
     (x < 0 || x > 9 || y < 0 || y > x)
 
-let checkTriangle x y player : Move list list = 
+let checkTriangle x y player : Move list list = // checks if the coordinates mentioned are part of any triangles and returns the list of triangles
 
     let mutable triangles = []
     
@@ -114,7 +110,7 @@ let checkTriangle x y player : Move list list =
                 triangles <- triangle :: triangles   
     triangles
 
-let checkAllTriangles(): Move list list = 
+let checkAllTriangles(): Move list list = // returns all triangles on the board
 
     let mutable triangleList = []
     for x in 0 .. 9 do 
@@ -192,10 +188,9 @@ let getConnectedCogs x y =
 let convertMoveToIndex connectedCogsList = // converts the cog (record) to its equivalent index in the tree
     let mutable indexList = []
     for cog in connectedCogsList do 
-        for node in tree do
+        for node in graph do
             if cog = node.move then
                 indexList <- node.index :: indexList
-
     indexList
 
 let checkGameStatus() = //check the current state of the game  and update currentGameStatus
@@ -210,7 +205,6 @@ let rec traverse index visited oldChains player = // traverse the player's paths
     | 0 -> // if index is 0, the golden cog has been reached
         let newVisited = 0 :: visited
         chains <- newVisited :: oldChains
-        printfn "Golden Cog Reached! Blue wins the game!"
         match player with 
         | B -> currentGameStatus <- WonByB //change current game status to indicate victory of B
         | R -> currentGameStatus <- WonByR //change current game status to indicate victory of R
@@ -220,12 +214,30 @@ let rec traverse index visited oldChains player = // traverse the player's paths
         if not (List.contains ind visited) then
             let newVisited = ind :: visited
             chains <- newVisited :: oldChains
-            printfn "INDEX: %i VISITED: %A" ind newVisited
-            for i in tree.[ind].connectedNodes do
+            //printfn "INDEX: %i VISITED: %A" ind newVisited
+            for i in graph.[ind].connectedNodes do
                 chains <- (traverse i newVisited chains player) @ chains
         chains  
 
+let findTriangleOnChain ch player = // checks if any cog on the chain is part of a triangle
+    
+    let mutable triangleFound = false
+    let chains = ch |> List.distinct |> List.rev |> List.map List.rev // gets distinct items, reverses the list and reverses all items in the list
+    for chain in chains do // for each chain in the list of chains  
+        for index in chain do // for each index (node) on the chain
+            let x = graph.[index].move.X
+            let y = graph.[index].move.Y
+            let by = graph.[index].move.By
+
+            if not (checkTriangle x y by).IsEmpty then // if the list of triangles is not empty, then return true meaning a triangle was found
+                triangleFound <- true // triangle was found
+            
+    triangleFound // triangle was not found.. so return false
+        
+        
+
 let rec addPiece() = // adds pieces to the board
+    
     printfn "Enter X Coordinate (0-9): "
     let xCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
     printfn "Enter Y Coordinate (0-%i): " xCoord
@@ -241,27 +253,67 @@ let rec addPiece() = // adds pieces to the board
             let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
             match currentPlayer with 
             | B -> 
-                tree <- tree |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = currentBlueIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                graph <- graph |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = currentBlueIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
                 for ind in indexList do // for each item in the index list update their index list to contain this cog's index
-                    let move = tree.[ind].move
-                    let conList = currentBlueIndex :: tree.[ind].connectedNodes
-                    tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                    let move = graph.[ind].move
+                    let conList = currentBlueIndex :: graph.[ind].connectedNodes
+                    graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
                 currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
                 blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the move to the blue move list
                 bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
                 let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
                 bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+                
+                if findTriangleOnChain bc B then // if the new cog is part of a triangle that connects back to the base then consider it illegal
+                    
+                    currentBlueIndex <- currentBlueIndex - 2 // restore the currentBlueIndex
+                    bluePieces <- (bluePieces+1) //restore the number of blue pieces left
+
+                    jagged.[xCoord].[yCoord] <- E // make the cog empty again
+                    history <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} history // remove the move from history list
+                    blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove the move from the blue move list
+
+                    graph <- graph |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = -1; Y = yCoord; By = E}; index = currentBlueIndex; connectedNodes = []} else v ) // restore the current piece in the graph list
+                    
+                    for ind in indexList do // for each item in the index list restore their index list 
+                        let move = graph.[ind].move
+                        let conList = deleteItemFromList currentBlueIndex graph.[ind].connectedNodes // delete the current index from the neighbouring cogs list
+                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                    
+                    
+
+                    printfn "Invalid Move. Please Try again\n"
+                    addPiece()
             | R -> 
-                tree <- tree |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = currentRedIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                graph <- graph |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = currentRedIndex; connectedNodes = indexList} else v ) // change the current piece in the graph list
                 for ind in indexList do // for each item in the index list update their index list to contain this cog's index
-                    let move = tree.[ind].move
-                    let conList = currentRedIndex :: tree.[ind].connectedNodes
-                    tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                    let move = graph.[ind].move
+                    let conList = currentRedIndex :: graph.[ind].connectedNodes
+                    graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
                 currentRedIndex <- currentRedIndex + 2 // update the currentRedIndex
                 redMoveList <- {X = xCoord; Y = yCoord; By = R} :: redMoveList // add the move to the red move list
                 redPieces <- (redPieces-1) //reduce the number of red pieces left
                 let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
                 rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+                if findTriangleOnChain rc R then // if the new cog is part of a triangle that connects back to the base then consider it illegal
+                    
+                    jagged.[xCoord].[yCoord] <- E // make the cog empty again
+                    history <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} history // remove the move from history list
+                    redMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} redMoveList // remove the move from the red move list
+
+                    graph <- graph |> List.mapi (fun i v ->  if i = currentRedIndex then {move = {X = xCoord; Y = yCoord; By = E}; index = currentRedIndex; connectedNodes = []} else v ) // restore the current piece in the graph list
+                    
+                    for ind in indexList do // for each item in the index list restore their index list 
+                        let move = graph.[ind].move
+                        let conList = deleteItemFromList currentRedIndex graph.[ind].connectedNodes // delete the current index from the neighbouring cogs list
+                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                    
+                    currentRedIndex <- currentRedIndex - 2 // restore the currentRedIndex
+                    redPieces <- (redPieces + 1) //restore the number of red pieces left
+
+                    printfn "Invalid Move. Please Try again\n"
+                    addPiece()
+            
             | _ -> ()
 
             //Console.Clear()
@@ -297,7 +349,7 @@ let rec movePiece() =  // moves pieces on the board to a new location
                 let mutable orgIndex = -1 // represents the index of the piece that will be moved
                 let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
-                for node in tree do // gets the original index of the piece to be moved
+                for node in graph do // gets the original index of the piece to be moved
                     if node.move = {X = xCoord; Y = yCoord; By = jagged.[xCoord].[yCoord]} then
                         orgIndex <- node.index
                         orgNodeList <- node.connectedNodes
@@ -319,17 +371,17 @@ let rec movePiece() =  // moves pieces on the board to a new location
                     let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
                     let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
 
-                    tree <- tree |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = B}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                    graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = B}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
                     
                     for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
-                        let move = tree.[ind].move
-                        let conList = deleteItemFromList orgIndex tree.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
-                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                        let move = graph.[ind].move
+                        let conList = deleteItemFromList orgIndex graph.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
+                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
 
                     for ind in indexList do // for each item in the index list update their index list to contain this cog's index
-                        let move = tree.[ind].move
-                        let conList = orgIndex :: tree.[ind].connectedNodes
-                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                        let move = graph.[ind].move
+                        let conList = orgIndex :: graph.[ind].connectedNodes
+                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
                     
                     let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
                     bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list   
@@ -357,7 +409,7 @@ let rec movePiece() =  // moves pieces on the board to a new location
                 let mutable orgIndex = -1 // represents the index of the piece that will be moved
                 let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
-                for node in tree do // gets the original index of the piece to be moved
+                for node in graph do // gets the original index of the piece to be moved
                     if node.move = {X = xCoord; Y = yCoord; By = jagged.[xCoord].[yCoord]} then
                         orgIndex <- node.index
                         orgNodeList <- node.connectedNodes
@@ -379,17 +431,17 @@ let rec movePiece() =  // moves pieces on the board to a new location
                     let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
                     let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
 
-                    tree <- tree |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = R}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                    graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = R}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
                     
                     for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
-                        let move = tree.[ind].move
-                        let conList = deleteItemFromList orgIndex tree.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
-                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                        let move = graph.[ind].move
+                        let conList = deleteItemFromList orgIndex graph.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
+                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
 
                     for ind in indexList do // for each item in the index list update their index list to contain this cog's index
-                        let move = tree.[ind].move
-                        let conList = orgIndex :: tree.[ind].connectedNodes
-                        tree <- tree |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                        let move = graph.[ind].move
+                        let conList = orgIndex :: graph.[ind].connectedNodes
+                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
 
                     let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
                     rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
@@ -408,7 +460,19 @@ let rec movePiece() =  // moves pieces on the board to a new location
 
 
 let rec makeMove() = 
-    printfn "Current Player: %A" currentPlayer
+
+    if currentPlayer = B then
+        let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
+        bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+        if findTriangleOnChain bc B then
+            printfn "Your base is blocked! Please removed the block "
+    elif currentPlayer = R then
+        let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
+        rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+        if findTriangleOnChain rc R then
+            printfn "Your base is blocked! Please removed the block "
+    
+    printfn "\nCurrent Player: %A" currentPlayer
     printfn "1. Add a piece"
 
     match currentPlayer with
@@ -431,29 +495,14 @@ let rec makeMove() =
     checkGameStatus() // checks the current game status
     match currentGameStatus with 
     | InProgress -> makeMove() //if game is still in progress, call makeMove again
-    | _ -> printfn "GAME OVER!!" //else quit
+    | WonByB -> printfn "GAME OVER!! BLUE WINS!!" //else quit
+    | WonByR -> printfn "GAME OVER!! RED WINS!!" //else quit
 
 let main = 
 
-    //printfn "%i" tree.Length
-    //printfn "%A" tree
     printBoard()
 
-    //printfn "%b" (hasInvalidTriangle 4 3 R)
-
-    //printfn "%A" (checkTriangle 4 3 R)
-
-    ////let triangleList = checkAllTriangles() |> List.map List.sort |> List.distinct //get a distinct list of all the triangles on the board
-
-
-    ////printfn "Count : %i" triangleList.Length
-    //for l in triangleList do
-        //printfn "%A" l
-
     makeMove()
-
-    //jagged |> Array.sumBy Array.length |> printfn "LENGTH = %i" // to print length of a jagged array
-    
 
 main
 
