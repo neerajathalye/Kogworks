@@ -198,17 +198,37 @@ let checkGameStatus() = //check the current state of the game  and update curren
 
     ()
 
+let findTriangleOnChain ch player = // checks if any cog on the chain is part of a triangle
+    
+    let mutable triangleFound = false
+    let chains = ch |> List.distinct |> List.rev |> List.map List.rev // gets distinct items, reverses the list and reverses all items in the list
+    for chain in chains do // for each chain in the list of chains  
+        for index in chain do // for each index (node) on the chain
+            let x = graph.[index].move.X
+            let y = graph.[index].move.Y
+            let by = graph.[index].move.By  
+
+            if not (checkTriangle x y by).IsEmpty then // if the list of triangles is not empty, then return true meaning a triangle was found
+                triangleFound <- true // triangle was found
+            
+    triangleFound // triangle was not found.. so return false
+
 let rec traverse index visited oldChains player = // traverse the player's paths   
     
     let mutable chains = [] // keeps track of all the blue paths
     match index with 
-    | 0 -> // if index is 0, the golden cog has been reached
+    | 0 -> // if index is 0, the golden cog has been reached; No triangle on chain
         let newVisited = 0 :: visited
         chains <- newVisited :: oldChains
-        match player with 
-        | B -> currentGameStatus <- WonByB //change current game status to indicate victory of B
-        | R -> currentGameStatus <- WonByR //change current game status to indicate victory of R
-        | _ -> ()
+        let triangleFound = findTriangleOnChain chains player
+        match triangleFound with
+        | true -> currentGameStatus <- InProgress
+        | false -> 
+            match player with 
+            | B -> currentGameStatus <- WonByB //change current game status to indicate victory of B
+            | R -> currentGameStatus <- WonByR //change current game status to indicate victory of R
+            | _ -> ()
+        
         chains // return all chains formed
     | ind ->  // for all other indices, call their children recursively and depth first
         if not (List.contains ind visited) then
@@ -219,20 +239,7 @@ let rec traverse index visited oldChains player = // traverse the player's paths
                 chains <- (traverse i newVisited chains player) @ chains
         chains  
 
-let findTriangleOnChain ch player = // checks if any cog on the chain is part of a triangle
-    
-    let mutable triangleFound = false
-    let chains = ch |> List.distinct |> List.rev |> List.map List.rev // gets distinct items, reverses the list and reverses all items in the list
-    for chain in chains do // for each chain in the list of chains  
-        for index in chain do // for each index (node) on the chain
-            let x = graph.[index].move.X
-            let y = graph.[index].move.Y
-            let by = graph.[index].move.By
 
-            if not (checkTriangle x y by).IsEmpty then // if the list of triangles is not empty, then return true meaning a triangle was found
-                triangleFound <- true // triangle was found
-            
-    triangleFound // triangle was not found.. so return false
         
 let rec addPiece() = // adds pieces to the board
     
@@ -336,18 +343,28 @@ let rec movePiece() =  // moves pieces on the board to a new location
             printfn "Enter Y Coordinate (0-%i): " xCoord
             let newYCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
 
-            if isMoveValid newXCoord newYCoord B then
+            jagged.[xCoord].[yCoord] <- E // Make the old peg empty 
+            jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
+
+            if not (isMoveValid newXCoord newYCoord B) then
+
+                jagged.[xCoord].[yCoord] <- B // Make the old peg empty again
+                jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
+                printfn "Invalid Move. Please Try again\n"
+                movePiece()
+
+            else
 
                 let mutable orgIndex = -1 // represents the index of the piece that will be moved
                 let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
                 for node in graph do // gets the original index and node list of the piece to be moved
-                    if node.move = {X = xCoord; Y = yCoord; By = jagged.[xCoord].[yCoord]} then
+                    if node.move = {X = xCoord; Y = yCoord; By = B} then
                         orgIndex <- node.index
                         orgNodeList <- node.connectedNodes
 
-                jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
-                jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
+                //jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
+                //jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
 
                 if hasInvalidTriangle newXCoord newYCoord B then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
                     jagged.[xCoord].[yCoord] <- B // Make the old peg empty again
@@ -398,9 +415,9 @@ let rec movePiece() =  // moves pieces on the board to a new location
                         printfn "Invalid Move. Please Try again\n"
                         movePiece()
 
-            else
-                printfn "Invalid Move. Please Try again\n"
-                movePiece()
+            //else
+            //    printfn "Invalid Move. Please Try again\n"
+            //    movePiece()
         else
             printfn "Illegal Move. Try again"
             movePiece()
@@ -413,18 +430,23 @@ let rec movePiece() =  // moves pieces on the board to a new location
             printfn "Enter Y Coordinate (0-%i): " xCoord
             let newYCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
 
-            if isMoveValid newXCoord newYCoord R then
+            jagged.[xCoord].[yCoord] <- E // Make the old peg empty 
+            jagged.[newXCoord].[newYCoord] <- R // assign R to the new coordindates in jagged
+
+            if not (isMoveValid newXCoord newYCoord R) then
+
+                jagged.[xCoord].[yCoord] <- R // Make the old peg red again
+                jagged.[newXCoord].[newYCoord] <- E // assign E to the new coordindates in jagged
+
+            else 
 
                 let mutable orgIndex = -1 // represents the index of the piece that will be moved
                 let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
                 for node in graph do // gets the original index of the piece to be moved
-                    if node.move = {X = xCoord; Y = yCoord; By = jagged.[xCoord].[yCoord]} then
+                    if node.move = {X = xCoord; Y = yCoord; By = R} then
                         orgIndex <- node.index
                         orgNodeList <- node.connectedNodes
-
-                jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
-                jagged.[newXCoord].[newYCoord] <- R // assign B to the new coordindates in jagged
 
                 if hasInvalidTriangle newXCoord newYCoord R then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
                     jagged.[xCoord].[yCoord] <- R // Make the old peg empty again
@@ -474,20 +496,21 @@ let rec movePiece() =  // moves pieces on the board to a new location
 
                         printfn "Invalid Move. Please Try again\n"
                         movePiece()  
-            else
-                printfn "Invalid Move. Please Try again\n"
-                movePiece()
-
+            //else
+            //    printfn "Invalid Move. Please Try again\n"
+            //    movePiece()
         else
             printfn "Illegal Move. Try again"
             movePiece()
     | _ -> ()
 
-
 let rec makeMove() = 
 
-    //Console.Clear()
+    Console.Clear()
     printBoard()
+
+    let mutable choice = -1
+    let mutable baseBlocked = false
 
     currentPlayer <- other() // swap players
 
@@ -497,39 +520,54 @@ let rec makeMove() =
         let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
         bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
         if findTriangleOnChain bc B then
-            printfn "Your base is blocked! Please removed the block "
+            printfn "Your base is blocked! Please remove the block "
+            baseBlocked <- true
         else 
             printfn "1. Add a piece"
     elif currentPlayer = R then
         let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
         rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
         if findTriangleOnChain rc R then
-            printfn "Your base is blocked! Please removed the block "
+            printfn "Your base is blocked! Please remove the block "
+            baseBlocked <- true
         else 
             printfn "1. Add a piece"
     
     match currentPlayer with
     | B ->
-        if not (blueMoveList.Length = 0) then 
+        if not (blueMoveList.Length = 0) && not baseBlocked then 
             printfn "2. Move a piece" // shows up only if a move has been made by blue
     | R ->
-        if not (redMoveList.Length = 0) then
+        if not (redMoveList.Length = 0) && not baseBlocked then
             printfn "2. Move a piece" // shows up only if a move has been made by red
     | _ -> ()
-    let choice = Int32.Parse (Console.ReadLine()) // parse string input to int
 
+    match baseBlocked with
+    | true -> movePiece()
+    | false -> 
+        let choice = Int32.Parse (Console.ReadLine()) // parse string input to int
+        matchChoice choice
+    
+    checkGameStatus() // checks the current game status
+    match currentGameStatus with 
+    | InProgress -> makeMove() //if game is still in progress, call makeMove again
+    | WonByB -> 
+        Console.Clear()
+        printBoard()
+        printfn "GAME OVER!! BLUE WINS!!" //else quit
+    | WonByR -> 
+        Console.Clear()
+        printBoard()
+        printfn "GAME OVER!! RED WINS!!" //else quit
+
+and matchChoice choice = 
+    
     match choice with
     | 1 -> addPiece()
     | 2 -> movePiece()
     | _ -> 
         printfn "Wrong choice. Try again"
         makeMove()
-
-    checkGameStatus() // checks the current game status
-    match currentGameStatus with 
-    | InProgress -> makeMove() //if game is still in progress, call makeMove again
-    | WonByB -> printfn "GAME OVER!! BLUE WINS!!" //else quit
-    | WonByR -> printfn "GAME OVER!! RED WINS!!" //else quit
 
 let main = 
 
