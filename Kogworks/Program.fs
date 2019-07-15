@@ -5,6 +5,10 @@ type CellState =
 | G // Golden
 | E // Empty
 
+type NumberOfPlayers = // denotes if the game is 1p or 2p
+| One
+| Two
+
 type GameStatus = 
 | InProgress
 | WonByB
@@ -27,6 +31,7 @@ let mutable redPieces = 14 // number of red pieces
 let mutable bluePieces = 14 // number of blue pieces
 let mutable currentBlueIndex = 3
 let mutable currentRedIndex = 4
+let mutable numPlayers = One // number of players - One or Two. Default One
 
 let mutable history = []
 let mutable blueMoveList = []
@@ -142,8 +147,7 @@ let hasInvalidTriangle x y player = //Checks if there is an invalid triangle tha
             //if count >= 2 then //return true if more than 2 pieces of the player are already part of a triangle
                 //foundTriangle <- true
     //printfn "FOUND TRIANGLE: %b" foundTriangle
-    foundTriangle // will return true only if a triangle was found
-    
+    foundTriangle // will return true only if a triangle was found 
 
 let isMoveValid x y player : bool = //checks whether the current move is valid or not
     match (x,y,player) with 
@@ -174,7 +178,12 @@ let rec deleteItemFromList item list = //deletes specified item from the list
     | head :: tail -> head :: deleteItemFromList item tail
     | _ -> []
 
-let getConnectedCogs x y = 
+let rec last = function // returns last element of a list
+| hd :: [] -> hd
+| hd :: tl -> last tl
+| _ -> failwith "Empty list."
+
+let getConnectedCogs x y = // finds all the cogs that are adjacent to the cog at (x,y)
     let mutable connectedCogsList = []
     let coordinates = [(x, y-1); (x-1, y-1); (x-1, y); (x, y+1); (x+1, y+1); (x+1, y)]
     for c in coordinates do // returns records of move for all the adjacent cogs
@@ -192,11 +201,6 @@ let convertMoveToIndex connectedCogsList = // converts the cog (record) to its e
             if cog = node.move then
                 indexList <- node.index :: indexList
     indexList
-
-let checkGameStatus() = //check the current state of the game  and update currentGameStatus
-    //TODO: Write method
-
-    ()
 
 let findTriangleOnChain ch player = // checks if any cog on the chain is part of a triangle
     
@@ -238,9 +242,7 @@ let rec traverse index visited oldChains player = // traverse the player's paths
             for i in graph.[ind].connectedNodes do
                 chains <- (traverse i newVisited chains player) @ chains
         chains  
-
-
-        
+    
 let rec addPiece() = // adds pieces to the board
     
     printfn "Enter X Coordinate (0-9): "
@@ -316,7 +318,6 @@ let rec addPiece() = // adds pieces to the board
 
                     printfn "Invalid Move. Please Try again\n"
                     addPiece()
-            
             | _ -> ()
  
         else
@@ -352,9 +353,7 @@ let rec movePiece() =  // moves pieces on the board to a new location
                 jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
                 printfn "Invalid Move. Please Try again\n"
                 movePiece()
-
             else
-
                 let mutable orgIndex = -1 // represents the index of the piece that will be moved
                 let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
@@ -362,9 +361,6 @@ let rec movePiece() =  // moves pieces on the board to a new location
                     if node.move = {X = xCoord; Y = yCoord; By = B} then
                         orgIndex <- node.index
                         orgNodeList <- node.connectedNodes
-
-                //jagged.[xCoord].[yCoord] <- E // Make the old peg empty again
-                //jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
 
                 if hasInvalidTriangle newXCoord newYCoord B then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
                     jagged.[xCoord].[yCoord] <- B // Make the old peg empty again
@@ -414,10 +410,6 @@ let rec movePiece() =  // moves pieces on the board to a new location
 
                         printfn "Invalid Move. Please Try again\n"
                         movePiece()
-
-            //else
-            //    printfn "Invalid Move. Please Try again\n"
-            //    movePiece()
         else
             printfn "Illegal Move. Try again"
             movePiece()
@@ -437,9 +429,7 @@ let rec movePiece() =  // moves pieces on the board to a new location
 
                 jagged.[xCoord].[yCoord] <- R // Make the old peg red again
                 jagged.[newXCoord].[newYCoord] <- E // assign E to the new coordindates in jagged
-
             else 
-
                 let mutable orgIndex = -1 // represents the index of the piece that will be moved
                 let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
@@ -496,59 +486,114 @@ let rec movePiece() =  // moves pieces on the board to a new location
 
                         printfn "Invalid Move. Please Try again\n"
                         movePiece()  
-            //else
-            //    printfn "Invalid Move. Please Try again\n"
-            //    movePiece()
         else
             printfn "Illegal Move. Try again"
             movePiece()
     | _ -> ()
 
-let rec makeMove() = 
+let makeComputerMove() = // makes the move for the blue player which is the computer
+    
+    let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
+    bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+    printfn "Computer's move"
+
+    let mutable longestChain = bc.[0]
+    for chain in bc do // gets the longest chain from all the chains
+        if chain.Length > longestChain.Length then
+            longestChain <- chain
+
+    printfn "Longest Chain: %A" longestChain 
+
+    let lastKogOnChain = longestChain.Head // Gets the last kog on the chain ( since the list is in reverse)
+
+    let x = graph.[lastKogOnChain].move.X // x coordinate of the last kog on the chain
+    let y = graph.[lastKogOnChain].move.Y // x coordinate of the last kog on the chain
+
+    let mutable validMoves = []
+
+    let coordinates = [(x, y-1); (x-1, y-1); (x-1, y); (x, y+1); (x+1, y+1); (x+1, y)] // list of adjacent coordinates
+
+    for c in coordinates do // create a list of valid moves from the kogs that are adjacent to (x,y)
+        if not (isInvalidCoord c) then
+            validMoves <- c :: validMoves
+
+    printfn "ADJACENT COORDINATES: %A" validMoves
+
+    let mutable xCoord, yCoord = last validMoves // select the last move in the valid moves list and assign that to the computer
+
+    for (x,y) in validMoves do //delete the coordinates that are not empty
+        if jagged.[x].[y] <> E then 
+            validMoves <- deleteItemFromList (x,y) validMoves
+
+    for (x,y) in validMoves do //delete the invalid moves from the list
+        if not (isMoveValid x y B) then 
+            validMoves <- deleteItemFromList (x,y) validMoves
+
+    if isMoveValid xCoord yCoord B then // check if the selected move is valid
+        if not (hasInvalidTriangle xCoord yCoord B) then
+            jagged.[xCoord].[yCoord] <- B // Assign B to the peg 
+            history <- {X = xCoord; Y = yCoord; By = B} :: history // add current move to history list
+            blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add current move to blueMoveList  
+            
+            let connectedCogList = getConnectedCogs xCoord yCoord // contains the list of the adjacent cogs
+            let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+
+            graph <- graph |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = currentBlueIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+            for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                let move = graph.[ind].move
+                let conList = currentBlueIndex :: graph.[ind].connectedNodes
+                graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+            
+            currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
+            bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
+
+let rec makeMove() = // numPlayers = 1 or 2 meaning 1 player or 2 player
 
     Console.Clear()
     printBoard()
 
-    let mutable choice = -1
     let mutable baseBlocked = false
 
     currentPlayer <- other() // swap players
 
-    printfn "\nCurrent Player: %A" currentPlayer
-
-    if currentPlayer = B then
-        let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
-        bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
-        if findTriangleOnChain bc B then
-            printfn "Your base is blocked! Please remove the block "
-            baseBlocked <- true
-        else 
-            printfn "1. Add a piece"
-    elif currentPlayer = R then
-        let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
-        rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
-        if findTriangleOnChain rc R then
-            printfn "Your base is blocked! Please remove the block "
-            baseBlocked <- true
-        else 
-            printfn "1. Add a piece"
+    if numPlayers = One  && currentPlayer = B then
+        makeComputerMove() // makes the move for the blue player which is the computer
+        makeMove()
+    elif numPlayers = Two || (numPlayers = One && currentPlayer = R) then // do the following only if 2 player game or if the human(R) is playing
+        printfn "\nCurrent Player: %A" currentPlayer
     
-    match currentPlayer with
-    | B ->
-        if not (blueMoveList.Length = 0) && not baseBlocked then 
-            printfn "2. Move a piece" // shows up only if a move has been made by blue
-    | R ->
-        if not (redMoveList.Length = 0) && not baseBlocked then
-            printfn "2. Move a piece" // shows up only if a move has been made by red
-    | _ -> ()
-
-    match baseBlocked with
-    | true -> movePiece()
-    | false -> 
-        let choice = Int32.Parse (Console.ReadLine()) // parse string input to int
-        matchChoice choice
+        if currentPlayer = B then
+            let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
+            bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+            if findTriangleOnChain bc B then
+                printfn "Your base is blocked! Please remove the block "
+                baseBlocked <- true
+            else 
+                printfn "1. Add a piece"
+        elif currentPlayer = R then
+            let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
+            rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+            if findTriangleOnChain rc R then
+                printfn "Your base is blocked! Please remove the block "
+                baseBlocked <- true
+            else 
+                printfn "1. Add a piece"
+        
+        match currentPlayer with
+        | B ->
+            if not (blueMoveList.Length = 0) && not baseBlocked then 
+                printfn "2. Move a piece" // shows up only if a move has been made by blue
+        | R ->
+            if not (redMoveList.Length = 0) && not baseBlocked then
+                printfn "2. Move a piece" // shows up only if a move has been made by red
+        | _ -> ()
     
-    checkGameStatus() // checks the current game status
+        match baseBlocked with
+        | true -> movePiece()
+        | false -> 
+            let choice = Int32.Parse (Console.ReadLine()) // parse string input to int
+            matchChoice choice
+
     match currentGameStatus with 
     | InProgress -> makeMove() //if game is still in progress, call makeMove again
     | WonByB -> 
@@ -569,11 +614,29 @@ and matchChoice choice =
         printfn "Wrong choice. Try again"
         makeMove()
 
+let rec singlePlayerMove() = 
+    ()
+
+let rec chooseGameType() = 
+    printfn "\n\tChoose the type of game..."
+    printfn "\t1. 1 player"
+    printfn "\t2. 2 player"
+    let choice = Console.ReadLine()
+
+    match choice with 
+    | "1" -> 
+        numPlayers <- One
+        makeMove()
+    | "2" -> 
+        numPlayers <- Two
+        makeMove()
+    | _ ->
+        printfn "Wrong choice. Try again"
+        chooseGameType()
+
 let main = 
 
-    //printBoard()
-
-    makeMove()
+    chooseGameType()
 
 main
 
