@@ -334,162 +334,160 @@ let rec movePiece() =  // moves pieces on the board to a new location
     let xCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
     printfn "Enter Y Coordinate (0-%i): " xCoord
     let yCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
+    if not (isMoveValid xCoord yCoord currentPlayer) then
+        match currentPlayer with
+        | B -> 
+            if List.contains {X = xCoord; Y = yCoord; By = B} blueMoveList then   
+                printfn "Enter new Coordinates" //get coordinates for the new piece
+                printfn "Enter X Coordinate (0-9): "
+                let newXCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
+                printfn "Enter Y Coordinate (0-%i): " xCoord
+                let newYCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
 
-    match currentPlayer with
-    | B -> 
-        if List.contains {X = xCoord; Y = yCoord; By = B} blueMoveList then   
-            printfn "Enter new Coordinates" //get coordinates for the new piece
-            printfn "Enter X Coordinate (0-9): "
-            let newXCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
-            printfn "Enter Y Coordinate (0-%i): " xCoord
-            let newYCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
+                if not (isMoveValid newXCoord newYCoord B) then // if invalid move
 
-            jagged.[xCoord].[yCoord] <- E // Make the old peg empty 
-            jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
-
-            if not (isMoveValid newXCoord newYCoord B) then
-
-                jagged.[xCoord].[yCoord] <- B // Make the old peg empty again
-                jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
-                printfn "Invalid Move. Please Try again\n"
-                movePiece()
-            else
-                let mutable orgIndex = -1 // represents the index of the piece that will be moved
-                let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
-
-                for node in graph do // gets the original index and node list of the piece to be moved
-                    if node.move = {X = xCoord; Y = yCoord; By = B} then
-                        orgIndex <- node.index
-                        orgNodeList <- node.connectedNodes
-
-                if hasInvalidTriangle newXCoord newYCoord B then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
-                    jagged.[xCoord].[yCoord] <- B // Make the old peg empty again
-                    jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
                     printfn "Invalid Move. Please Try again\n"
                     movePiece()
                 else
-                    history <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} history // remove old move from history list
-                    blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove old move from the blue move list
-                    history <- {X = newXCoord; Y = newYCoord; By = B} :: history // add current move to history list
-                    blueMoveList <- {X = newXCoord; Y = newYCoord; By = B} :: blueMoveList // add the move to the blue move list
+                    jagged.[xCoord].[yCoord] <- E // Make the old peg empty 
+                    jagged.[newXCoord].[newYCoord] <- B // assign B to the new coordindates in jagged
+                    let mutable orgIndex = -1 // represents the index of the piece that will be moved
+                    let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
-                    let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
-                    let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+                    for node in graph do // gets the original index and node list of the piece to be moved
+                        if node.move = {X = xCoord; Y = yCoord; By = B} then
+                            orgIndex <- node.index
+                            orgNodeList <- node.connectedNodes
 
-                    graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = B}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
-                    
-                    for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
-                        let move = graph.[ind].move
-                        let conList = deleteItemFromList orgIndex graph.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
-                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
-
-                    for ind in indexList do // for each item in the index list update their index list to contain this cog's index
-                        let move = graph.[ind].move
-                        let conList = orgIndex :: graph.[ind].connectedNodes
-                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
-                    
-                    let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
-                    bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list   
-
-                    if findTriangleOnChain bc B then // if the new cog is part of a triangle that connects back to the base then consider it illegal
-
-                        jagged.[newXCoord].[newYCoord] <- E // make the new cog empty again
-                        jagged.[xCoord].[yCoord] <- B // make the old cog blue again
-                        history <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = B} history // remove the new move from history list
-                        blueMoveList <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = B} blueMoveList // remove the new move from the blue move list
-                        history <- {X = xCoord; Y = yCoord; By = B} :: history // add the original move back to history list
-                        blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the original move back to the blue move list
-
-                        graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = orgIndex; connectedNodes = orgNodeList} else v ) // restore the old piece in the graph list
-                        
-                        for ind in indexList do // for each item in the index list restore their index list 
-                            let move = graph.[ind].move
-                            let connectedCogList = getConnectedCogs move.X move.Y // contains the list of the adjacent cogs for the new position
-                            let indList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
-                            graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = indList} else v ) // change the current piece in the tree list
-
+                    if hasInvalidTriangle newXCoord newYCoord B then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
+                        jagged.[xCoord].[yCoord] <- B // Make the old peg empty again
+                        jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
                         printfn "Invalid Move. Please Try again\n"
                         movePiece()
-        else
-            printfn "Illegal Move. Try again"
-            movePiece()
-    | R -> 
-        if List.contains {X = xCoord; Y = yCoord; By = R} redMoveList then
+                    else
+                        history <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} history // remove old move from history list
+                        blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove old move from the blue move list
+                        history <- {X = newXCoord; Y = newYCoord; By = B} :: history // add current move to history list
+                        blueMoveList <- {X = newXCoord; Y = newYCoord; By = B} :: blueMoveList // add the move to the blue move list
+
+                        let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
+                        let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+
+                        graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = B}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                    
+                        for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
+                            let move = graph.[ind].move
+                            let conList = deleteItemFromList orgIndex graph.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
+                            graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
+                        for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                            let move = graph.[ind].move
+                            let conList = orgIndex :: graph.[ind].connectedNodes
+                            graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                    
+                        let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
+                        bc |> List.distinct |> List.rev |> List.map List.rev |> printfn "BLUE CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list   
+
+                        if findTriangleOnChain bc B then // if the new cog is part of a triangle that connects back to the base then consider it illegal
+
+                            jagged.[newXCoord].[newYCoord] <- E // make the new cog empty again
+                            jagged.[xCoord].[yCoord] <- B // make the old cog blue again
+                            history <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = B} history // remove the new move from history list
+                            blueMoveList <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = B} blueMoveList // remove the new move from the blue move list
+                            history <- {X = xCoord; Y = yCoord; By = B} :: history // add the original move back to history list
+                            blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the original move back to the blue move list
+
+                            graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = orgIndex; connectedNodes = orgNodeList} else v ) // restore the old piece in the graph list
+                        
+                            for ind in indexList do // for each item in the index list restore their index list 
+                                let move = graph.[ind].move
+                                let connectedCogList = getConnectedCogs move.X move.Y // contains the list of the adjacent cogs for the new position
+                                let indList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+                                graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = indList} else v ) // change the current piece in the tree list
+
+                            printfn "Invalid Move. Please Try again\n"
+                            movePiece()
+            else
+                printfn "Illegal Move. Try again"
+                movePiece()
+        | R -> 
+            if List.contains {X = xCoord; Y = yCoord; By = R} redMoveList then
             
-            printfn "Enter new Coordinates" //get coordinates for the new piece
-            printfn "Enter X Coordinate (0-9): "
-            let newXCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
-            printfn "Enter Y Coordinate (0-%i): " xCoord
-            let newYCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
+                printfn "Enter new Coordinates" //get coordinates for the new piece
+                printfn "Enter X Coordinate (0-9): "
+                let newXCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
+                printfn "Enter Y Coordinate (0-%i): " xCoord
+                let newYCoord = Int32.Parse (Console.ReadLine()) // parse string input to int
 
-            jagged.[xCoord].[yCoord] <- E // Make the old peg empty 
-            jagged.[newXCoord].[newYCoord] <- R // assign R to the new coordindates in jagged
-
-            if not (isMoveValid newXCoord newYCoord R) then
-
-                jagged.[xCoord].[yCoord] <- R // Make the old peg red again
-                jagged.[newXCoord].[newYCoord] <- E // assign E to the new coordindates in jagged
-            else 
-                let mutable orgIndex = -1 // represents the index of the piece that will be moved
-                let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
-
-                for node in graph do // gets the original index of the piece to be moved
-                    if node.move = {X = xCoord; Y = yCoord; By = R} then
-                        orgIndex <- node.index
-                        orgNodeList <- node.connectedNodes
-
-                if hasInvalidTriangle newXCoord newYCoord R then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
-                    jagged.[xCoord].[yCoord] <- R // Make the old peg empty again
-                    jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
+                if not (isMoveValid newXCoord newYCoord R) then
                     printfn "Invalid Move. Please Try again\n"
                     movePiece()
-                else
-                    history <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} history // remove old move from history list
-                    redMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} redMoveList // remove old move from the red move list
-                    history <- {X = newXCoord; Y = newYCoord; By = R} :: history // add current move to history list
-                    redMoveList <- {X = newXCoord; Y = newYCoord; By = R} :: redMoveList // add the move to the red move list
+                else 
+                    jagged.[xCoord].[yCoord] <- E // Make the old peg empty 
+                    jagged.[newXCoord].[newYCoord] <- R // assign R to the new coordindates in jagged
+                    let mutable orgIndex = -1 // represents the index of the piece that will be moved
+                    let mutable orgNodeList = [] // represents the adjacent nodes of the piece that will be moved
 
-                    let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
-                    let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+                    for node in graph do // gets the original index of the piece to be moved
+                        if node.move = {X = xCoord; Y = yCoord; By = R} then
+                            orgIndex <- node.index
+                            orgNodeList <- node.connectedNodes
 
-                    graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = R}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
-                    
-                    for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
-                        let move = graph.[ind].move
-                        let conList = deleteItemFromList orgIndex graph.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
-                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
-
-                    for ind in indexList do // for each item in the index list update their index list to contain this cog's index
-                        let move = graph.[ind].move
-                        let conList = orgIndex :: graph.[ind].connectedNodes
-                        graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
-
-                    let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
-                    rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
-                    
-                    if findTriangleOnChain rc R then // if the new cog is part of a triangle that connects back to the base then consider it illegal
-
-                        jagged.[newXCoord].[newYCoord] <- E // make the new cog empty again
-                        jagged.[xCoord].[yCoord] <- R // make the old cog red again
-                        history <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = R} history // remove the new move from history list
-                        redMoveList <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = R} redMoveList // remove the new move from the red move list
-                        history <- {X = xCoord; Y = yCoord; By = R} :: history // add the original move back to history list
-                        redMoveList <- {X = xCoord; Y = yCoord; By = R} :: redMoveList // add the original move back to the red move list
-
-                        graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = orgIndex; connectedNodes = orgNodeList} else v ) // restore the old piece in the graph list
-                        
-                        for ind in indexList do // for each item in the index list restore their index list 
-                            let move = graph.[ind].move
-                            let connectedCogList = getConnectedCogs move.X move.Y // contains the list of the adjacent cogs for the new position
-                            let indList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
-                            graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = indList} else v ) // change the current piece in the tree list
-
+                    if hasInvalidTriangle newXCoord newYCoord R then // if (x,y) is part of an invalid triangle then return false and swap the pieces back
+                        jagged.[xCoord].[yCoord] <- R // Make the old peg empty again
+                        jagged.[newXCoord].[newYCoord] <- E // assign B to the new coordindates in jagged
                         printfn "Invalid Move. Please Try again\n"
-                        movePiece()  
-        else
-            printfn "Illegal Move. Try again"
-            movePiece()
-    | _ -> ()
+                        movePiece()
+                    else
+                        history <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} history // remove old move from history list
+                        redMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = R} redMoveList // remove old move from the red move list
+                        history <- {X = newXCoord; Y = newYCoord; By = R} :: history // add current move to history list
+                        redMoveList <- {X = newXCoord; Y = newYCoord; By = R} :: redMoveList // add the move to the red move list
+
+                        let connectedCogList = getConnectedCogs newXCoord newYCoord // contains the list of the adjacent cogs for the new position
+                        let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+
+                        graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = newXCoord; Y = newYCoord; By = R}; index = orgIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                    
+                        for ind in orgNodeList do // for each item in the original node list update their index list to remove the original cog's index
+                            let move = graph.[ind].move
+                            let conList = deleteItemFromList orgIndex graph.[ind].connectedNodes // delete the orgIndex from all of its connected nodes
+                            graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
+                        for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                            let move = graph.[ind].move
+                            let conList = orgIndex :: graph.[ind].connectedNodes
+                            graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+
+                        let rc = traverse 2 [] [] R // traverses from red's base and gets all paths starting from node 2
+                        rc |> List.distinct |> List.rev |> List.map List.rev |> printfn "RED CHAINS : %A" // gets distinct items, reverses the list and reverses all items in the list
+                    
+                        if findTriangleOnChain rc R then // if the new cog is part of a triangle that connects back to the base then consider it illegal
+
+                            jagged.[newXCoord].[newYCoord] <- E // make the new cog empty again
+                            jagged.[xCoord].[yCoord] <- R // make the old cog red again
+                            history <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = R} history // remove the new move from history list
+                            redMoveList <- deleteItemFromList {X = newXCoord; Y = newYCoord; By = R} redMoveList // remove the new move from the red move list
+                            history <- {X = xCoord; Y = yCoord; By = R} :: history // add the original move back to history list
+                            redMoveList <- {X = xCoord; Y = yCoord; By = R} :: redMoveList // add the original move back to the red move list
+
+                            graph <- graph |> List.mapi (fun i v ->  if i = orgIndex then {move = {X = xCoord; Y = yCoord; By = R}; index = orgIndex; connectedNodes = orgNodeList} else v ) // restore the old piece in the graph list
+                        
+                            for ind in indexList do // for each item in the index list restore their index list 
+                                let move = graph.[ind].move
+                                let connectedCogList = getConnectedCogs move.X move.Y // contains the list of the adjacent cogs for the new position
+                                let indList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+                                graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = indList} else v ) // change the current piece in the tree list
+
+                            printfn "Invalid Move. Please Try again\n"
+                            movePiece()  
+            else
+                printfn "Illegal Move. Try again"
+                movePiece()
+        | _ -> ()
+    else
+        printfn "Illegal Move. Try again"
+        movePiece()
     
 let chooseRandomValidMove (validMoves:(int*int) list) = // returns a random valid move
     let rand = new System.Random()
