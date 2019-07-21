@@ -529,12 +529,70 @@ let addComputerPiece (bc:int list list) =
     
     let rec performValidMove (validMovesList:(int*int) list) = 
 
-        if validMovesList.Length = 0 then
-            currentGameStatus <- WonByR
+        if validMovesList.Length = 0 then // if there are no valid moves, check if there is a triangle
+            if findTriangleOnChain bc B then // if triangle found then game over
+                currentGameStatus <- WonByR
+            else // if there is no triangle then repeatedly choose a random x and y and place a piece there till a valid move is found  
+                let mutable emptyCoordinatesList = [] // represents the list of empty coordinates on the board
+
+                for i in 0 .. 9 do
+                    for j in 0 .. i do
+                        if jagged.[i].[j] = E then
+                            emptyCoordinatesList <- (i,j) :: emptyCoordinatesList 
+
+                let rec chooseRandomEmptyCoordinate (list:(int32*int32) list) = 
+                    let rand = new System.Random()
+                    let xCoord, yCoord = list.[rand.Next(list.Length)] // randomly choose an x and y coordinate from the list
+
+                    if isMoveValid xCoord yCoord B then // check if the selected move is valid
+                        if not (hasInvalidTriangle xCoord yCoord B) then
+                            jagged.[xCoord].[yCoord] <- B // Assign B to the peg 
+                            history <- {X = xCoord; Y = yCoord; By = B} :: history // add current move to history list
+                            blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add current move to blueMoveList  
+        
+                            let connectedCogList = getConnectedCogs xCoord yCoord // contains the list of the adjacent cogs
+                            let indexList = convertMoveToIndex connectedCogList // converts the cog record to its equivalent index
+
+                            graph <- graph |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = xCoord; Y = yCoord; By = B}; index = currentBlueIndex; connectedNodes = indexList} else v ) // change the current piece in the tree list
+                            for ind in indexList do // for each item in the index list update their index list to contain this cog's index
+                                let move = graph.[ind].move
+                                let conList = currentBlueIndex :: graph.[ind].connectedNodes
+                                graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+        
+                            currentBlueIndex <- currentBlueIndex + 2 // update the currentBlueIndex
+                            bluePieces <- (bluePieces-1) //reduce the number of blue pieces left
+
+                            let bc = traverse 1 [] [] B // traverses from blue's base and gets all paths starting from node 1
+                    
+                            if findTriangleOnChain bc B then // if the new cog is part of a triangle that connects back to the base then consider it illegal
+                        
+                                currentBlueIndex <- currentBlueIndex - 2 // restore the currentBlueIndex
+                                bluePieces <- (bluePieces+1) //restore the number of blue pieces left
+
+                                jagged.[xCoord].[yCoord] <- E // make the cog empty again
+                                history <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} history // remove the move from history list
+                                blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove the move from the blue move list
+
+                                graph <- graph |> List.mapi (fun i v ->  if i = currentBlueIndex then {move = {X = -1; Y = -1; By = E}; index = currentBlueIndex; connectedNodes = []} else v ) // restore the current piece in the graph list
+                        
+                                for ind in indexList do // for each item in the index list restore their index list 
+                                    let move = graph.[ind].move
+                                    let conList = deleteItemFromList currentBlueIndex graph.[ind].connectedNodes // delete the current index from the neighbouring cogs list
+                                    graph <- graph |> List.mapi (fun i v ->  if i = ind then {move = move; index = ind; connectedNodes = conList} else v ) // change the current piece in the tree list
+                            
+                                let newList = deleteItemFromList (xCoord, yCoord) list
+                                chooseRandomEmptyCoordinate newList // if a triangle if found, all changes are reverted and perform valid move is called again
+                        else
+                            let newList = deleteItemFromList (xCoord, yCoord) list
+                            chooseRandomEmptyCoordinate newList // if a triangle if found, all changes are reverted and perform valid move is called again
+                    else
+                        let newList = deleteItemFromList (xCoord, yCoord) list
+                        chooseRandomEmptyCoordinate newList // if a triangle if found, all changes are reverted and perform valid move is called again
+    
+                chooseRandomEmptyCoordinate emptyCoordinatesList
+
         else
-
             let mutable xCoord, yCoord = chooseRandomValidMove validMovesList // select the a random move in the valid moves list and assign that to the computer
-
             if isMoveValid xCoord yCoord B then // check if the selected move is valid
                 if not (hasInvalidTriangle xCoord yCoord B) then
                     jagged.[xCoord].[yCoord] <- B // Assign B to the peg 
@@ -619,6 +677,7 @@ let moveComputerPiece (bc:int list list) =
                     orgNodeList <- node.connectedNodes
 
             jagged.[xCoord].[yCoord] <- E // make the kog empty
+            bluePieces <- bluePieces + 1 // increment the counter again
 
             history <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} history // remove the move from history list
             blueMoveList <- deleteItemFromList {X = xCoord; Y = yCoord; By = B} blueMoveList // remove the move from the blue move list
@@ -636,6 +695,7 @@ let moveComputerPiece (bc:int list list) =
 
                 //revert all the changes made
                 jagged.[xCoord].[yCoord] <- B // make the kog blue again
+                bluePieces <- bluePieces - 1 // decrease the counter again
 
                 history <- {X = xCoord; Y = yCoord; By = B} :: history // add the move to the history list again
                 blueMoveList <- {X = xCoord; Y = yCoord; By = B} :: blueMoveList // add the move to the blue move list again
